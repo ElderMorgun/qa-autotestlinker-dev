@@ -5,8 +5,13 @@ import type { TestFile } from "../domain/types";
 export async function discoverTestsInPullRequest(
   ctx: Context<any>
 ): Promise<TestFile[]> {
+  // helper Probot-а: { owner, repo, pull_number }
   const pr = ctx.pullRequest();
-  const filesResp = await ctx.octokit.pulls.listFiles({ ...pr, per_page: 100 });
+
+  const filesResp = await ctx.octokit.rest.pulls.listFiles({
+    ...pr,
+    per_page: 100,
+  });
 
   const branch = (ctx.payload.pull_request as any).head.ref;
 
@@ -14,9 +19,9 @@ export async function discoverTestsInPullRequest(
 
   for (const f of filesResp.data) {
     if (f.status === "removed") continue;
-    if (!/\.(spec|test)\.(t|j)sx?$/.test(f.filename)) continue;
+    if (!/\.(spec|test)\.(t|j)sx?$/i.test(f.filename)) continue;
 
-    const fileContent = await ctx.octokit.repos.getContent({
+    const fileContent = await ctx.octokit.rest.repos.getContent({
       ...ctx.repo(),
       path: f.filename,
       ref: branch,
@@ -30,7 +35,9 @@ export async function discoverTestsInPullRequest(
       continue;
     }
 
-    const text = Buffer.from(fileContent.data.content, "base64").toString("utf8");
+    const text = Buffer.from(fileContent.data.content, "base64").toString(
+      "utf8"
+    );
 
     const parsedFile = parseTestsFromSource(text, f.filename);
     files.push(parsedFile);
